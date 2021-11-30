@@ -30,6 +30,7 @@ import (
 
 type Model struct {
 	Handler unsafe.Pointer
+	Name    string
 	UUID    string
 }
 
