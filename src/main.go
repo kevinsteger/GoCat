@@ -35,6 +35,14 @@ func main() {
 	fmt.Println("running on port: ", port)
 	initmaps()
 
+	size, err := dirSize(dir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if size > int64(max_memory) {
+		log.Fatal("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
+	}
+
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), r))
 
 }

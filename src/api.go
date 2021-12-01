@@ -39,11 +39,11 @@ type PredictWinnerResponse struct {
 var models map[string]*Model
 var loadedModel *Model
 
-var ids map[string]bool
+var requestedModels map[string]bool
 
 func initmaps() {
 	temp := make(map[string]bool)
-	ids = temp
+	requestedModels = temp
 
 	temp2 := make(map[string]*Model)
 	models = temp2
@@ -52,6 +52,19 @@ func initmaps() {
 func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 
 	modelsRes := []*ModelResponse{}
+
+	//check total size before loading
+	size, err := dirSize(dir)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, err.Error())
+		log.Fatal(err)
+	}
+
+	if size > int64(max_memory) {
+		log.Print("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
+		respondWithError(w, http.StatusForbidden, "Total memory for models exceeds configured limit of"+strconv.Itoa(max_memory)+"(MB)")
+		return
+	}
 
 	//get file information on each model
 	fileInfos, err := ioutil.ReadDir(dir)
@@ -62,11 +75,6 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 
 	//iterate and check size
 	for _, modelFileInfo := range fileInfos {
-		if modelFileInfo.Size() > int64(max_memory) {
-			log.Print("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
-			respondWithError(w, http.StatusForbidden, "Total memory for models exceeds configured limit of"+strconv.Itoa(max_memory)+"(MB)")
-			return
-		}
 
 		//get unix timestamp
 		stat_t := modelFileInfo.Sys().(*syscall.Stat_t)
@@ -78,18 +86,21 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 		//join
 		uuid := name + "_" + strconv.Itoa(int(timestamp))
 
-		//save in slice of requested models uuids
-		ids[uuid] = true
+		//save in slice of requested models names
+		requestedModels[name] = true
 
 		//if model isnt loaded proceed to load and add
-		if _, ok := models[uuid]; !ok {
+		//or if it's an old version -- overload
+		_, ok := models[name]
+		if !ok || models[name].UUID != uuid {
 			path := filepath.Join(dir, modelFileInfo.Name())
-			models[uuid], err = LoadModel(path)
+			models[name], err = LoadModel(path)
 
 			if err != nil {
 				respondWithError(w, http.StatusInternalServerError, err.Error())
 				log.Fatalln(err)
 			}
+			models[name].UUID = uuid
 		}
 		//add data to http response
 		modelsRes = append(modelsRes, &ModelResponse{
@@ -100,10 +111,10 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//loop over loaded models
-	for id, _ := range models {
-		//if any uuid is not among the requested values release from memory
-		if _, ok := ids[id]; !ok {
-			delete(models, id)
+	for name, _ := range models {
+		//if any model name is not among the requested values release from memory
+		if _, ok := requestedModels[name]; !ok {
+			delete(models, name)
 		}
 	}
 
@@ -170,11 +181,11 @@ func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 
 	if vars["model"] == "" {
 		respondWithError(w, http.StatusBadRequest, "Missing model param.")
-		log.Fatalln("Missing model param.")
+		log.Println("Missing model param.")
 		return
 	}
 
-	if loadedModel == nil || vars["model"] != loadedModel.Name {
+	if models[vars["model"]] == nil {
 		respondWithError(w, http.StatusInternalServerError, "Model not loaded in memory.")
 		return
 	}
@@ -202,9 +213,10 @@ func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 		go func(order int, my_chan chan<- []float64) {
 
 			var res []float64
-			pred, err := loadedModel.GetPrediction(predArr[order])
+			pred, err := models[vars["model"]].GetPrediction(predArr[order])
 
 			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, err.Error())
 				log.Fatal(err)
 			}
 			//append order tag and result
@@ -238,7 +250,7 @@ func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 		var winnerRes PredictWinnerResponse
 
 		winnerRes.Winner = index
-		winnerRes.ModelUUID = loadedModel.UUID
+		winnerRes.ModelUUID = models[vars["model"]].UUID
 		winnerRes.Prediction = ext
 
 		err = respondWithJSON(w, 200, winnerRes)
@@ -250,7 +262,7 @@ func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 
 	//if optional wasnt set
 	predictResponse := &PredictResponse{}
-	predictResponse.ModelUUID = loadedModel.UUID
+	predictResponse.ModelUUID = models[vars["model"]].UUID
 	predictResponse.Predictions = results
 
 	err = respondWithJSON(w, 200, predictResponse)
@@ -281,4 +293,18 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) error
 
 func timespecToTime(ts syscall.Timespec) int64 {
 	return time.Unix(int64(ts.Sec), int64(ts.Nsec)).Unix()
+}
+
+func dirSize(path string) (int64, error) {
+	var size int64
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return err
+	})
+	return size, err
 }
