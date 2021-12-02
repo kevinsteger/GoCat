@@ -124,57 +124,6 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func httpLoadModel(w http.ResponseWriter, r *http.Request) {
-
-	vars := mux.Vars(r)
-	if vars["model"] == "" {
-		return
-	}
-	filename := vars["model"] + ".cbm"
-
-	path := filepath.Join(dir, filename)
-
-	modelFileInfo, err := os.Stat(path)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		log.Fatal(err)
-	}
-
-	//check size
-	if modelFileInfo.Size() > int64(max_memory) {
-		log.Print("Total memory for model exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
-		respondWithError(w, http.StatusForbidden, "Total memory for model exceeds configured limit of"+strconv.Itoa(max_memory)+"(MB)")
-		return
-	}
-
-	//make uuid
-	stat_t := modelFileInfo.Sys().(*syscall.Stat_t)
-	timestamp := timespecToTime(stat_t.Ctim)
-	uuid := vars["model"] + "_" + strconv.Itoa(int(timestamp))
-
-	//if there's no loaded model or its a different one
-	if loadedModel == nil || uuid != loadedModel.UUID {
-		//new model -- overload
-		loadedModel, err = LoadModel(path)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		loadedModel.Name = vars["model"]
-		loadedModel.UUID = uuid
-	}
-
-	//prepare http response
-	modelRes := &ModelResponse{
-		Model:  loadedModel.Name,
-		SizeMB: float64(modelFileInfo.Size()) / 1000000.,
-		UUID:   loadedModel.UUID,
-	}
-	err = respondWithJSON(w, http.StatusOK, modelRes)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 	var err error
 	vars := mux.Vars(r)

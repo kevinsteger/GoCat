@@ -26,7 +26,6 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/models/load", httpLoadModels)
-	r.HandleFunc("/models/{model}/load", httpLoadModel)
 	r.HandleFunc("/models/{model}/predict", httpMakePrediction)
 	r.HandleFunc("/models/{model}/predict/{optional}", httpMakePrediction)
 
