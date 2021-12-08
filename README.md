@@ -7,7 +7,7 @@ go build -o main *.go && ./main
 ```
 
 loading models:
-``
+``'
 curl http://localhost:8080/models/load
 ```
 
