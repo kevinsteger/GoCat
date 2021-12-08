@@ -21,7 +21,7 @@ func main() {
 	flag.IntVar(&max_channel, "b", 0, "maximum value of buffer channel. defaults to 0")
 	flag.IntVar(&max_memory, "m", 64, "maximum size of models in megabytes. defaults to 64")
 	flag.StringVar(&dir, "d", "../models/", "directory to load models from. defaults to parent dir/models")
-    flag.Parse()
+	flag.Parse()
     
 	max_memory = max_memory * 1000000
 
