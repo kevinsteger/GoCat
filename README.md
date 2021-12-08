@@ -11,7 +11,7 @@ loading models:
 curl http://localhost:8080/models/load
 ```
 
-make a prediction:
+make a prediction on the *addition* model:
 ```
 curl --header "Content-Type: application/json" \
   --request SEARCH \
