@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -11,33 +12,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
-type ModelResponse struct {
-	Model  string  `json:"model"`
-	UUID   string  `json:"uuid"`
-	SizeMB float64 `json:"sizeMB"`
-}
-
-type SamplesRequest struct {
-	InputArr [][]interface{} `json:"inputArr"`
-}
-
-type PredictResponse struct {
-	ModelUUID   string    `json:"model_uuid"`
-	Predictions []float64 `json:"predictions"`
-}
-
-type PredictWinnerResponse struct {
-	ModelUUID  string  `json:"model_uuid"`
-	Winner     int     `json:"winner"`
-	Prediction float64 `json:"prediction"`
-}
-
 var models map[string]*Model
-var loadedModel *Model
 
 var requestedModels map[string]bool
 
@@ -49,28 +26,21 @@ func initmaps() {
 	models = temp2
 }
 
-func httpLoadModels(w http.ResponseWriter, r *http.Request) {
-
-	modelsRes := []*ModelResponse{}
-
+func apiLoadModels() (modelsRes []*ModelResponse, code int, err error) {
 	//check total size before loading
 	size, err := dirSize(dir)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		log.Fatal(err)
+		return nil, http.StatusInternalServerError, err
 	}
 
 	if size > int64(max_memory) {
-		log.Print("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
-		respondWithError(w, http.StatusForbidden, "Total memory for models exceeds configured limit of"+strconv.Itoa(max_memory)+"(MB)")
-		return
+		return nil, http.StatusForbidden, errors.New("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
 	}
 
 	//get file information on each model
 	fileInfos, err := ioutil.ReadDir(dir)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		log.Fatal(err)
+		return nil, http.StatusInternalServerError, err
 	}
 
 	//iterate and check size
@@ -97,8 +67,7 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 			models[name], err = LoadModel(path)
 
 			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, err.Error())
-				log.Fatalln(err)
+				return nil, http.StatusInternalServerError, err
 			}
 			models[name].UUID = uuid
 		}
@@ -118,74 +87,54 @@ func httpLoadModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err = respondWithJSON(w, http.StatusOK, modelsRes)
-	if err != nil {
-		log.Fatalln(err)
-	}
+	return modelsRes, http.StatusOK, err
 }
 
-func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
-	var err error
-	vars := mux.Vars(r)
-
-	if vars["model"] == "" {
-		respondWithError(w, http.StatusBadRequest, "Missing model param.")
-		log.Println("Missing model param.")
-		return
-	}
-
-	if models[vars["model"]] == nil {
-		respondWithError(w, http.StatusInternalServerError, "Model not loaded in memory.")
-		return
-	}
-
+func apiMakePrediction(req *SamplesRequest, model string, optional string) (interface{}, error) {
 	resultsChan := make(chan []float64, max_channel)
+	errorChan := make(chan error, 1)
 
-	//decode request
-	var req SamplesRequest
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&req); err != nil {
-		respondWithError(w, http.StatusBadRequest, "Invalid request payload")
-		log.Fatalln(err)
-	}
-
-	defer r.Body.Close()
 	defer close(resultsChan)
+	defer close(errorChan)
 
-	predArr := req.InputArr
-	results := make([]float64, len(predArr))
+	features := req.Features
+	results := make([]float64, len(features))
 	var index int   //index of extreme value
 	var ext float64 //min or max
 
-	for i := 0; i < len(predArr); i++ {
+	for i := 0; i < len(features); i++ {
 		//launch goroutines
-		go func(order int, my_chan chan<- []float64) {
+		go func(order int, my_chan chan<- []float64, err_chan chan<- error) {
 
 			var res []float64
-			pred, err := models[vars["model"]].GetPrediction(predArr[order])
+			pred, err := models[model].GetPrediction(features[order])
 
 			if err != nil {
-				respondWithError(w, http.StatusInternalServerError, err.Error())
-				log.Fatal(err)
+				err_chan <- err
 			}
 			//append order tag and result
 			res = append(res, float64(order))
 			res = append(res, pred)
 			my_chan <- res
+			err_chan <- nil
 
-		}(i, resultsChan)
+		}(i, resultsChan, errorChan)
 
 		val := <-resultsChan
+		err := <-errorChan
+		if err != nil {
+			return nil, err
+		}
 
 		if i == 0 {
 			ext = val[1]
 		}
-		if vars["optional"] == "max" {
+		if optional == "max" {
 			if val[1] > ext {
 				ext = val[1]
 				index = i
 			}
-		} else if vars["optional"] == "min" {
+		} else if optional == "min" {
 			if val[1] < ext {
 				ext = val[1]
 				index = i
@@ -195,35 +144,28 @@ func httpMakePrediction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if vars["optional"] != "" {
+	if optional != "" {
 		var winnerRes PredictWinnerResponse
 
 		winnerRes.Winner = index
-		winnerRes.ModelUUID = models[vars["model"]].UUID
+		winnerRes.ModelUUID = models[model].UUID
 		winnerRes.Prediction = ext
 
-		err = respondWithJSON(w, 200, winnerRes)
-		if err != nil {
-			log.Fatalln(err)
-		}
-		return
+		return winnerRes, nil
 	}
 
 	//if optional wasnt set
 	predictResponse := &PredictResponse{}
-	predictResponse.ModelUUID = models[vars["model"]].UUID
+	predictResponse.ModelUUID = models[model].UUID
 	predictResponse.Predictions = results
 
-	err = respondWithJSON(w, 200, predictResponse)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, err.Error())
-		log.Fatalln(err)
-	}
+	return predictResponse, nil
 }
 
 // helper functions
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
+	log.Println("error: ", message)
 	respondWithJSON(w, code, map[string]string{"error": message})
 }
 

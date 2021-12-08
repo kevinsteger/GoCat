@@ -25,22 +25,15 @@ func main() {
 	max_memory = max_memory * 1000000
 
 	r := mux.NewRouter()
-	r.HandleFunc("/models/load", httpLoadModels)
-	r.HandleFunc("/models/{model}/predict", httpMakePrediction)
-	r.HandleFunc("/models/{model}/predict/{optional}", httpMakePrediction)
+	r.HandleFunc("/models/load", httpLoadModels).Methods("GET")
+	r.HandleFunc("/models/{model}/predict", httpMakePrediction).Methods("SEARCH")
+	r.HandleFunc("/models/{model}/predict/{optional}", httpMakePrediction).Methods("SEARCH")
 
 	http.Handle("/", r)
 
 	fmt.Println("running on port: ", port)
 	initmaps()
-
-	size, err := dirSize(dir)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if size > int64(max_memory) {
-		log.Fatal("Total memory for models exceeds configured limit of" + strconv.Itoa(max_memory) + "(MB)")
-	}
+	apiLoadModels()
 
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), r))
 
