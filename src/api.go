@@ -18,6 +18,8 @@ var models map[string]*Model
 
 var requestedModels map[string]bool
 
+const fileExtension = ".cbm"
+
 func initmaps() {
 	temp := make(map[string]bool)
 	requestedModels = temp
@@ -43,9 +45,11 @@ func apiLoadModels() (modelsRes []*ModelResponse, code int, err error) {
 		return nil, http.StatusInternalServerError, err
 	}
 
-	//iterate and check size
 	for _, modelFileInfo := range fileInfos {
-
+		//if extension doesn't match -- skip file
+		if filepath.Ext(modelFileInfo.Name()) != fileExtension {
+			continue
+		}
 		//get unix timestamp
 		stat_t := modelFileInfo.Sys().(*syscall.Stat_t)
 		timestamp := timespecToTime(stat_t.Ctim)
@@ -53,7 +57,6 @@ func apiLoadModels() (modelsRes []*ModelResponse, code int, err error) {
 		//get model name
 		filename := strings.Split(modelFileInfo.Name(), ".")
 		name := filename[0]
-		//join
 		uuid := name + "_" + strconv.Itoa(int(timestamp))
 
 		//save in slice of requested models names
@@ -192,7 +195,7 @@ func dirSize(path string) (int64, error) {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() {
+		if !info.IsDir() && filepath.Ext(info.Name()) == fileExtension {
 			size += info.Size()
 		}
 		return err
