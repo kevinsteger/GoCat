@@ -1,7 +1,7 @@
 package main
 
 import (
-	"flag"
+    "os"
 	"fmt"
 	"log"
 	"net/http"
@@ -15,14 +15,22 @@ var max_channel int
 var max_memory int
 var dir string
 
+func getenv(key, fallback string) string {
+    value := os.Getenv(key)
+    if len(value) == 0 {
+        return fallback
+    } else {
+    return value
+    }
+}
+
 func main() {
 
-	flag.IntVar(&port, "p", 8080, "the port to serve on. defaults to 8080")
-	flag.IntVar(&max_channel, "b", 0, "maximum value of buffer channel. defaults to 0")
-	flag.IntVar(&max_memory, "m", 64, "maximum size of models in megabytes. defaults to 64")
-	flag.StringVar(&dir, "d", "../models/", "directory to load models from. defaults to parent dir/models")
-	flag.Parse()
-    
+    port, _ = strconv.Atoi(getenv("GOCAT_PORT", "8080"))
+    max_channel, _ = strconv.Atoi(getenv("GOCAT_MAX_CHANNEL", "0"))
+    dir = getenv("GOCAT_MODEL_FOLDER", "../models/")
+    max_memory, _ = strconv.Atoi(getenv("GOCAT_MAX_MEMORY", "64"))
+        
 	max_memory = max_memory * 1000000
 
 	r := mux.NewRouter()
@@ -33,7 +41,11 @@ func main() {
 	http.Handle("/", r)
 
 	fmt.Println("running on port: ", port)
-	initmaps()
+    fmt.Println("maximum channels: ", max_channel)
+    fmt.Println("model directory: ", dir)
+    fmt.Println("max memory: ", max_memory)
+	
+    initmaps()
 	apiLoadModels()
 
 	log.Fatal(http.ListenAndServe(":"+strconv.Itoa(port), r))
