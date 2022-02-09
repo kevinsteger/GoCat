@@ -1,7 +1,7 @@
 # build command:
 # docker build --rm -t gocat-server .
 
-FROM golang:1.17.4
+FROM golang:1.17.6
 
 RUN mkdir /app
 

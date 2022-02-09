@@ -4,6 +4,9 @@ services:
     image: gocat-server:latest
     ports:
       - "8080:8080"
+    mem_limit: 1024m
+    mem_reservation: 256M
+    cpus: 1.0   
     environment:
         GOCAT_PORT: 8080 
         GOCAT_MODEL_FOLDER: "../models/"
