@@ -12,3 +12,5 @@ services:
         GOCAT_MODEL_FOLDER: "../models/"
         GOCAT_MAX_CHANNEL: 0
         GOCAT_MAX_MEMORY: 64
+        GOCAT_CACHE_COUNT: 100
+        GOCAT_CACHE_TTL: 10

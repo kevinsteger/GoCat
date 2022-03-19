@@ -34,6 +34,15 @@ type Model struct {
 	UUID    string
 }
 
+type cache struct {
+	modelName string
+	input     []interface{}
+}
+
+func (s cache) String() string {
+	return fmt.Sprintf("%#v", s)
+}
+
 func LoadModel(filename string) (*Model, error) {
 	model := &Model{}
 	model.Handler = C.ModelCalcerCreate()
@@ -44,6 +53,18 @@ func LoadModel(filename string) (*Model, error) {
 }
 
 func (model *Model) GetPrediction(inputArray []interface{}) (float64, error) {
+	//result already exists in cache
+	if cache_count > 0 && cache_ttl > 0 {
+		if result, ok := arc.Get(cache{
+			modelName: model.Name,
+			input:     inputArray,
+		}.String()); ok {
+			if f, ok := result.(float64); ok {
+				return f, nil
+			}
+		}
+	}
+
 	cats := []string{}
 	floats := []float32{}
 
@@ -84,6 +105,14 @@ func (model *Model) GetPrediction(inputArray []interface{}) (float64, error) {
 		C.size_t(1.0),
 	) {
 		return 0.0, getError()
+	}
+
+	//add to cache
+	if cache_count > 0 && cache_ttl > 0 {
+		arc.Add(cache{
+			modelName: model.Name,
+			input:     inputArray,
+		}.String(), result)
 	}
 
 	return result, nil
