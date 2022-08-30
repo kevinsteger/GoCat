@@ -1,7 +1,7 @@
 version: '3.7'
 services:
   gocat:
-    image: gocat-server:latest
+    image: kevinsteger/gocat-server:latest
     ports:
       - "8080:8080"
     mem_limit: 1024m
