@@ -53,7 +53,7 @@ response:
 }
 ```
 ### optional predict parameters
-Appending "max" or "min" to the end of the /predict endpoint will return only the winning prediction value and model index. e.g. /models/addition/predict/max for the above sample results:
+Appending "max" or "min" to the end of the /predict endpoint will return only the winning prediction value and zero based model index. e.g. /models/addition/predict/max for the above sample results:
 ```
 {
   "model_uuid": "addition_1661879065",
