@@ -1,7 +1,7 @@
 # GoCat
 A highly scalable Catboost model server in Go
 
-to build and run: 
+### to build and run: 
 ```
 go build -o main *.go && ./main
 ```
