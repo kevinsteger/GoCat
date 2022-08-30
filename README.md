@@ -24,6 +24,8 @@ go build -o main *.go && ./main
 ```
 curl http://localhost:8080/models/load
 ```
+The /load function is called when GoCat starts and can be called at any time a .cbm model file has been updated. All API responses will include a unique identifier for the model. Model identifier is comprised of the file name and timestamp.
+
 response:
 ```
 [{
@@ -40,6 +42,8 @@ curl --header "Content-Type: application/json" \
   --data '{ "features" : [[1,1],[2,3],[5,8],[13,21]] }' \
   http://localhost:8080/models/addition/predict
 ```
+Predictions will be returned in the order in which they were provided in the API call.
+
 response:
 ```
 {
@@ -52,6 +56,7 @@ response:
   ],
 }
 ```
+
 ### optional predict parameters
 Appending "max" or "min" to the end of the /predict endpoint will return only the winning prediction value and zero based model index. e.g. /models/addition/predict/max for the above sample results:
 ```
