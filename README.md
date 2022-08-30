@@ -23,9 +23,9 @@ go build -o main *.go && ./main
 ### loading models:
 ```
 curl http://localhost:8080/models/load
-
+```
 response:
-
+```
 [{
   "model": "addition",
   "uuid": "addition_1661879065",
@@ -39,4 +39,16 @@ curl --header "Content-Type: application/json" \
   --request SEARCH \
   --data '{ "features" : [[1,1],[2,3],[5,8],[13,21]] }' \
   http://localhost:8080/models/addition/predict
+```
+response:
+```
+{
+"model_uuid": "addition_1661879065",
+  "predictions": [
+    2.5067490206808287,
+    4.907823840927691,
+    12.929173251603515,
+    33.599922064959685
+  ],
+}
 ```
