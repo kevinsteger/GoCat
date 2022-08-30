@@ -42,6 +42,8 @@ curl --header "Content-Type: application/json" \
   --data '{ "features" : [[1,1],[2,3],[5,8],[13,21]] }' \
   http://localhost:8080/models/addition/predict
 ```
+NOTE the request method for making predictions is **SEARCH** not **GET**
+
 Predictions will be returned in the order in which the features were provided in the API call.
 
 response:
