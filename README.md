@@ -23,6 +23,14 @@ go build -o main *.go && ./main
 ### loading models:
 ```
 curl http://localhost:8080/models/load
+
+response:
+
+[{
+  "model": "addition",
+  "uuid": "addition_1661879065",
+  "sizeMB": 3.514784
+}]
 ```
 
 ### make a prediction on the *addition* model:
