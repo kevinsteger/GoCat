@@ -94,10 +94,16 @@ func (model *Model) GetPrediction(inputArray []interface{}) (float64, error) {
 	defer C.freeCharArray(pointer, C.int(len(cats)))
 	catsC := pointer
 
+	var floatPointer *C.float
+
+	if floatLength > 0 {
+		floatPointer = (*C.float)(&floats[0])
+	}
+
 	//make prediction for single array
 	if !C.CalcModelPredictionSingle(
 		model.Handler,
-		(*C.float)(&floats[0]),
+		floatPointer,
 		C.size_t(floatLength),
 		(**C.char)(catsC),
 		C.size_t(catLength),
@@ -118,7 +124,7 @@ func (model *Model) GetPrediction(inputArray []interface{}) (float64, error) {
 	return result, nil
 }
 
-//helper functions to interact w C
+// helper functions to interact w C
 func getError() error {
 	messageC := C.GetErrorString()
 	message := C.GoString(messageC)
